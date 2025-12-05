@@ -1,0 +1,41 @@
+datasets (sets of holograms) are all stored in directories under 
+the "data" subdirectory.  They must be of the form, including the data folder itself:
+
+data/dataset_name/raw
+    file01.png
+    file02.png
+       :   :
+    filenn.png
+
+The filenames under the "raw" subdirectory do not need to follow
+any given pattern; name them as you will.
+
+The programs/scripts functions are briefly as follows:
+
+src/holo-00-capture.sh   captures images from a image source. Creates
+input: cam               a directory "data/cap20YY-MMDD-HHmmss" to store
+output: raw/             the images captured. No cropping or other
+			 image manipulation is currently done.
+
+src/holo-01-crop.sh      uses ImageMagick's convert command using the
+input: raw/              following options:
+output: cropped/         -thumbnail 512     resizes the hologram to be
+			                    512 pixels wide. The height
+					    is adjusted to maintain the 
+					    same aspect ratio.
+			-crop 512x512+0+128 crops the image to take a 
+			                    512x512 region of the image
+					    starting 128 pixels down
+					    from the top.
+			The converted images are given the same names as
+			the original names, but placed in a 
+src/holo-02-cleanqts.py This program takes the cropped and sized holograms
+input: cropped/         and performs neighbor subtraction to gratly reduce
+output: holo/           the interference from particles and surfaces
+                        that are attached to or are a part of the
+			instrumentation, thus leaving the interference
+			patterns of objects that were moving from 
+			frame to frame.
+
+
+
