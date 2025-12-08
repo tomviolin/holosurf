@@ -103,7 +103,6 @@ escaped = False
 while not escaped:
     if len(sys.argv) < 2:
         break
-    hologram = holo.
 
     cp.array(cv2.medianBlur(cv2.imread(sys.argv[imgptr]),3))
 
