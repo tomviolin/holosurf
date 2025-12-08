@@ -1,6 +1,6 @@
 #!/bin/bash
 
-datahome=`ls -1d data/cap* | tail -1`
+datahome=data/$1
 echo $datahome
 mkdir -p $datahome/cropped
 for f in $datahome/raw/*.png; do

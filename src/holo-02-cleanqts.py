@@ -6,9 +6,12 @@ from glob import glob
 
 import os,sys
 
+thisdir, thisfile = os.path.split(sys.argv[0])
 
-datahome = sorted(glob("data/cap*"))[-1]
-print(datahome)
+os.chdir(os.path.realpath(thisdir + "/.."))
+print(f"dir = {os.getcwd()}")
+datahome = sys.argv[1]
+print(f"datahome = {datahome}")
 
 #timestamp= now.strftime("%Y-%m-%d-%H:%M:%S")
 
@@ -86,3 +89,48 @@ for f in files:
 
 cv2.imshow('l',avgfile)
 k=cv2.waitKey(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

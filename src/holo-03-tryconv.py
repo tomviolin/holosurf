@@ -3,18 +3,28 @@
 import os,sys
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
+import cupy
+import cupy as cp
+
 def fixhololevel(pdata):
+    data = None
     # grayscale only
     if len(pdata.shape) > 2:
-        data = np.float32(cv2.cvtColor(data,cv2.COLOR_BGR2GRAY))
+        data = cp.array((pdata[...,1]).astype(cp.float32))
+        # data = cp.float32(cv2.cvtColor(pdata,cv2.COLOR_BGR2GRAY))
     else:
-        data=np.float32(pdata.copy())
+        data=pdata.copy()
+    if type(data) is np.ndarray:
+        data = cp.array(data)
+    
+    print(type(data))
     # normalize to 0..1
     data -= data.min()
     data /= data.max()
     # compute histogram
-    datahst = np.histogram(data, bins=256, range=(0.0, 1.0))[0]
+    print(type(data))
+    datahst = cp.histogram(data, bins=256, range=(0.0, 1.0))[0]
     # find most common value
     mostcommon = np.argmax(datahst)/256
     # shift so that most common value is at 0.5
@@ -24,151 +34,218 @@ def fixhololevel(pdata):
 
     return data
 
+
 img_size = 512
-fftpad = 128
+fftpad = 0
 fftp = 8
 #holo = np.float32(cv2.imread("composites/holo/gds_output00006.png")/255)[...,0]
 #kernel = np.float32(cv2.imread("onepix/holo/onepixel01.png")/255.0)[...,0]
 #gt = np.float32(cv2.imread("composites/gt/gds_output00006.png")/255.0)[...,0]
 
 # establish values that will not change based on holo params
-xx = np.linspace(-img_size//2,img_size//2-1,img_size)
-yy = np.linspace(-img_size//2,img_size//2-1,img_size)
-x,y = np.meshgrid(xx,yy)
-padding = np.ones([img_size+fftpad*2]*2)*0.5
+pimgsize = img_size + fftpad*2
+xx = cp.linspace(-pimgsize//2,pimgsize//2-1,pimgsize)
+yy = cp.linspace(-pimgsize//2,pimgsize//2-1,pimgsize)
+x,y = cp.meshgrid(xx,yy)
+padding = cp.ones([img_size+fftpad*2]*2)*0.5
+padding = padding + 0j
 
-holo = fixhololevel(np.float32(cv2.imread(sys.argv[1])/255)[...,0])
-datahome, basename = os.path.split(sys.argv[1])
-datahome, datalastdir = os.path.split(datahome)
+
 # holo params
-wavelen = 635.0e-9
+wavelen = 650.0e-9
 dx = 1.12e-6
-r = np.sqrt(x*x + y*y) * dx
+r = cp.sqrt(x*x + y*y) * dx
 
-render_number = 0
+zees = np.arange(wavelen*10, 0.01, wavelen) 
+zi=0
 
-paddedholo = padding.copy()
-paddedholo[fftpad:-fftpad,fftpad:-fftpad] = holo
-
-#zees = np.arange(1e-3-wavelen*1600,6e-3+wavelen*1000,wavelen*500)
-
-zees = np.exp(np.arange(np.log(0.0001),np.log(.01),0.025))
-
-#zees = np.arange(0.001, 0.003, 0.0001) 
-#zees = np.float32([0.0028])
-#zees = np.float32((0.00328, 0.00328001))
-zi = 0
-paused = False
-
-def makefig(zi):
-    render_number = zi+1
+def makefig(paddedholo, zi, imgptr):
     # these will change
+    global zees, r
     z = zees[zi]
-    d = np.sqrt(r*r+z*z)
+    d = cp.sqrt(r*r+z*z)
 
+    print (f"\n****** [{zi}/{len(zees)}] z={z:8.60f} ******")
+
+
+    # self-computed kernel
     kmask= 1.0 / (d+1)
-    amp = -np.sin((d / wavelen) * np.pi*2)  * kmask
+    amp = -cp.sin((d / wavelen) * cp.pi*2)  * kmask
     amp = amp / 2.0 + 0.5
 
+    phase = d * np.pi * 2 / wavelen
 
-    paddedamp =padding.copy()
-    paddedamp[fftpad:-fftpad,fftpad:-fftpad] = amp
+    amp = amp*cp.cos(phase) + 1j * amp * cp.sin(phase)
+    
+    #if fftpad > 0:
+    #    paddedamp =padding.copy()
+        #paddedamp[fftpad:-fftpad,fftpad:-fftpad] = amp
+    #else:
+    paddedamp = amp.copy()
 
-    paddedLaplacian = padding.copy()
+    paddedLaplacian = padding.get().copy()
     pdh = padding.shape[0]//2
-
+    #pdh = int(pdh)
     paddedLaplacian[...] = 0
-    paddedLaplacian[pdh-1:pdh+2, pdh-1:pdh+2] = (
-        np.float32(
-           [[ 0, 1, 0 ],
-            [ 1, -4, 1 ],
-            [ 0, 1, 0]]
-        )
-    )
+    lap = cp.float32(
+               [[ 0, 1, 0 ],
+                [ 1, -4, 1 ],
+                [ 0, 1, 0]]
+          )
+    paddedLaplacian[pdh-1:pdh+2, pdh-1:pdh+2] = lap
 
 
-
-    kernelFFT = np.fft.fft2(paddedamp)
+    # Kernel FFT
+    kernelFFT = cupy.fft.fft2(cupy.array(paddedamp))
     print(f"kernelFFT.shape={kernelFFT.shape} kernelFFT.dtype={kernelFFT.dtype}")
     print(f"np.real(kernelFFT).shape={np.real(kernelFFT).shape} np.real(kernelFFT).dtype={np.real(kernelFFT).dtype}")
 
-    holoFFT = np.fft.fft2(paddedholo)
+    # FFT of hologram
+    holoFFT = cupy.fft.fft2(cupy.array(paddedholo))
 
-    LapFFT = np.fft.fft2(paddedLaplacian)
+    # FFT of Laplacian
+    LapFFT = cupy.fft.fft2(cupy.array(paddedLaplacian))
 
+    # Product of KernelFFT and holoFFT => 
+    #    FFT of the convolution of the kernel and the hologram
     prodFFT = kernelFFT * holoFFT
 
-    edgesFFT = prodFFT * LapFFT * LapFFT 
+    # FFT of the convolution of the Laplacian over the hologram reconstruction
+    #edgesFFT = prodFFT * LapFFT * LapFFT 
 
-    prodpadded = np.fft.fftshift(np.fft.ifft2(prodFFT))
+    # inverse FFT of the product of the Kernel and the hologram 
+    #   is the kernel convolved over the hologram
+    prodpadded = cupy.fft.fftshift(cupy.fft.ifft2(prodFFT))
 
-    edgesPadded = np.fft.fftshift(np.fft.ifft2(edgesFFT))
+    # the inverse FFT of the product of the Ker
+    #edgesPadded = cupy.fft.fftshift(cupy.fft.ifft2(edgesFFT))
 
     prod=prodpadded[fftp:-fftp,fftp:-fftp]
-    edges = edgesPadded[fftp:-fftp,fftp:-fftp]
-    print(prod[:5,:5])
+    #edges = edgesPadded[fftp:-fftp,fftp:-fftp]
+    #print(prod[:5,:5])
 
-    im = np.abs(prod)
+    im = cupy.abs(prod)
     im = fixhololevel(im)
 
-    edgesim = (np.abs(edges))
-    edgesim = cv2.absdiff(edgesim,np.mean(edgesim))
+    #edgesim = (np.abs(edges))
+    #edgesim = cv2.absdiff(edgesim.get(),np.mean(edgesim.get()))
 
-    edgesblur = cv2.GaussianBlur(im, (0,0), sigmaX=3, sigmaY=3)
-    edgesblur2 =cv2.GaussianBlur(im, (0,0), sigmaX=5, sigmaY=5)
-    edgesdiff = cv2.absdiff(edgesblur,edgesblur2)
-    edgesim = edgesdiff
+    #edgesblur = cv2.GaussianBlur(im, (0,0), sigmaX=3, sigmaY=3)
+    #edgesblur2 =cv2.GaussianBlur(im, (0,0), sigmaX=5, sigmaY=5)
+    #edgesdiff = cv2.absdiff(edgesblur,edgesblur2)
+    #edgesim = edgesdiff
     #edgesim[edgesim<np.quantile(edgesim,.99)]=0
     #alpha=0.8
     #edgesim =  (edgesim * (1.5+alpha) + ( edgesblur * (-0.5) ))
     cimage = im# * edgesim
-    #cdiff = np.abs(cimage-0.5)
+    cdiff = fixhololevel(cimage)
+            #cp.abs(cimage-0.5)
     #edgesim=cdiff
-    fig,ax = plt.subplots(1,2)
-    fig.set_size_inches(12,6)
-    cimage=im #np.stack((im/2,im/2+edgesim/2,im/2+edgesim/2),axis=2)
+
+
+    #fig,ax = plt.subplots(1,2)
+    #fig.set_size_inches(12,6)
+    #cimage=recon #np.stack((im/2,im/2+edgesim/2,im/2+edgesim/2),axis=2)
     #ax[0].imshow(gt,cmap='binary_r')
     #ax[0].set_title('gt',fontsize=30)
     #ax[1].imshow(holo,cmap='binary_r')
     #ax[1].oset_title('holo',fontsize=30)
     print("******************")
     print(f"mkdir {datahome}/cimage")
-    print(f"save to {datahome}/cimage/{basename}")
     os.makedirs(f"{datahome}/cimage", exist_ok=True)
-    cv2.imwrite(f"{datahome}/cimage/{basename}",np.uint8(cimage*255))
+    cimadj = np.uint8(cp.abs(cimage).get()*255.0)
+    finame = f"{datahome}/cimage/z{zi:04d}_{basename}"
+    print(f"save to {finame}")
+    """
+    .   @param img Image.
+    .   @param text Text string to be drawn.
+    .   @param org Bottom-left corner of the text string in the image.
+    .   @param fontFace Font type, see #HersheyFonts.
+    .   @param fontScale Font scale factor that is multiplied by the font-specific base size.
+    .   @param color Text color.
+    .   @param thickness Thickness of the lines used to draw a text.
+    .   @param lineType Line type. See #LineTypes
+    .   @param bottomLeftOrigin When true, the image data origin is at the bottom-left corner. Otherwise,
+    .   it is at the top-left corner.
+    """
+    #cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:05f} frame={sys.argv[imgptr]}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.4,(0,0,0),2)
+    #cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:05f} frame={sys.argv[imgptr]}", (0,50),cv2.FONT_HERSHEY_DUPLEX,0.4,(255,255,255),2)
+    cv2.imwrite(f"{finame}",cimadj)
+    #os.makedirs(f"{datahome}/edgesim", exist_ok=True)
+    #cv2.imwrite(f"{datahome}/edgesim/{basename}",cimadj)
     print("******************")
-    ax[0].imshow(cimage,cmap='binary_r')
-    ax[0].set_title('cimage',fontsize=30)
-    ax[1].imshow(edgesim,cmap='binary_r')
-    ax[1].set_title('edgesim',fontsize=30)
-    suptitle = f"z = {z} [{zi}]"
-    plt.suptitle(suptitle,fontsize=40)
-    plt.tight_layout()
-    os.makedirs(f"{datahome}/figs", exist_ok=True)
-    figfile=f"{datahome}/figs/fig{render_number:03d}.png"
-    plt.savefig(figfile)
-    plt.close('all')
-    if len(zees) == 1:
-        sys.exit()
-    cv2.imshow("holomagic", cv2.imread(figfile))
-    k=cv2.waitKey(1) & 255
-    print(f"k={k}")
-    if k == 27:
+    return cimage
+
+
+### per image execution here ###
+imgptr = 1
+escaped = False
+while not escaped:
+    if len(sys.argv) < 2:
         break
-    if k == 32:
-        paused = not paused
-    if k == ord(','):
-        zi = (zi-1) if zi > 0 else len(zees)-1
-        paused = True
-    if k == ord('.'):
-        zi = (zi + 1) if zi < len(zees)-1 else 0
-        paused = True
-    if not paused:
-        zi+=1
-        if zi > len(zees)-1:
-            zi = 0
-            sys.exit(0)    
+    hologram = cp.array(cv2.imread(sys.argv[imgptr]))
 
+    hologram = fixhololevel(hologram)
+    datahome, basename = os.path.split(sys.argv[imgptr])
+    datahome, datalastdir = os.path.split(datahome)
 
-while True:
-    makefig(zi)
+    if fftpad > 0:
+        paddedholo = padding.copy()
+        paddedholo[fftpad:-fftpad,fftpad:-fftpad] = hologram
+    else:
+        paddedholo = hologram.copy()
+
+    cimage = makefig(paddedholo, zi, imgptr)
+    if zi > 0:
+        cimbelow = makefig(paddedholo, zi-1, imgptr)
+    else:
+        cimbelow = cimage
+    if zi < len(zees)-1 :
+        cimabove = makefig(paddedholo, zi+1, imgptr)
+    else:
+        cimabove = cimage
+
+    avgfile = (cimabove + cimbelow) / 2.0
+    thisfile = fixhololevel((cimage+0.01) / (avgfile+0.01))
+
+    cimadj = thisfile.get()
+    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:05f} frame={sys.argv[imgptr]}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.4,(0,0,0),2)
+    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:05f} frame={sys.argv[imgptr]}", (0,50),cv2.FONT_HERSHEY_DUPLEX,0.4,(255,255,155),1)
+
+    while True:
+        if type(cimadj) is not np.ndarray:
+            cimadj = cimadj.get()
+        cv2.imshow("image", cimadj)
+        k=cv2.waitKey(0) & 255
+        if k == 27 or k == ord('q'):
+            escaped=True
+            break
+        if k == ord('h'):
+            if imgptr > 1:
+                imgptr -= 1
+                break
+        if k == ord('l'):
+            if imgptr < len(sys.argv) - 1:
+                imgptr += 1
+                break
+        if k == ord('j'):
+            if zi > 0:
+                zi -= 1
+                break
+        if k == ord('k'):
+            if zi < len(zees) - 1:
+                zi += 1
+                break
+        if k == ord('n'):
+            if zi > 10:
+                zi -= 10
+            else:
+                zi  = 0
+            break
+        if k == ord('i'):
+            if zi < len(zees) - 11:
+                zi += 10
+            else:
+                zi = len(zees)-1
+            break
+
