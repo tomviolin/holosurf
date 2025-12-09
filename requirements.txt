@@ -40,3 +40,12 @@ triton==3.5.1
 typing-extensions==4.15.0
 tzdata==2025.2
 uv==0.9.14
+scipy
+llvmlite==0.45.1
+numba==0.62.1
+imageio==2.37.2
+lazy-loader==0.4
+scikit-image==0.25.2
+tifffile==2025.10.16
+
+

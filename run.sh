@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 # Run the hologram preparations and reconstruction
 # takes a single argument, which is the data set name.
@@ -8,7 +8,7 @@ if [ "$1" != "" ]; then
 fi
 
 rm -f data/$dataset/cimage/* data/$dataset/figs/*
-./src/holo-04-pyholo.py data/$dataset/holo/frame*.png
+./src/holo-04-pyholo.py data/$dataset/raw/frame*.png
 #for f in data/this/holo/frame*.png; do
 	#./src/holo-04-dpdif.py $f
 #done

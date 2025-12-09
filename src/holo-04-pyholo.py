@@ -10,6 +10,7 @@ import context
 import pyholoscope as pyh
 
 
+imgsum = None
 
 def fixhololevel(pdata):
     data = None
@@ -39,34 +40,21 @@ def fixhololevel(pdata):
     return data
 
 
-img_size = 512
-fftpad = 0
-fftp = 8
-#holo = np.float32(cv2.imread("composites/holo/gds_output00006.png")/255)[...,0]
-#kernel = np.float32(cv2.imread("onepix/holo/onepixel01.png")/255.0)[...,0]
-#gt = np.float32(cv2.imread("composites/gt/gds_output00006.png")/255.0)[...,0]
-
-# establish values that will not change based on holo params
-pimgsize = img_size + fftpad*2
-xx = cp.linspace(-pimgsize//2,pimgsize//2-1,pimgsize)
-yy = cp.linspace(-pimgsize//2,pimgsize//2-1,pimgsize)
-x,y = cp.meshgrid(xx,yy)
-padding = cp.ones([img_size+fftpad*2]*2)*0.5
-padding = padding + 0j
-
+#img_size = 512
 
 # holo params
 wavelen = 650.0e-9
 dx = 1.12e-6
-r = cp.sqrt(x*x + y*y) * dx
+#r = cp.sqrt(x*x + y*y) * dx
 
-zees = np.arange(wavelen*10, 0.01, wavelen) 
+zees = np.arange(wavelen*50, 0.01, wavelen*10) 
 
 def makefig(paddedholo, zi, imgptr):
     # these will change
     global zees, r
+    zi=np.clip(zi, 0, len(zees)-1)
     z = zees[zi]
-    d = cp.sqrt(r*r+z*z)
+    #d = cp.sqrt(r*r+z*z)
 
     print (f"\n****** [{zi}/{len(zees)}] z={z:8.60f} ******")
 
@@ -77,18 +65,28 @@ def makefig(paddedholo, zi, imgptr):
         pixel_size=dx,  # Hologram physical pixel size, m
     #    background=background,  # To subtract the background
         depth=zees[zi],
-        invert=True,
-        cuda=True
+        invert=False,
+        cuda=True,
+        background=imgavg
     )  # Distance to refocus, m
 
     
     # Refocus
-    cimage = holo.process(paddedholo.get())
+    
+    if type(paddedholo) is np.ndarray:
+        paddedholo = cp.array(paddedholo)
+    if len(paddedholo.shape) > 2:
+        paddedholo = paddedholo[...,1]
+    paddedholo = paddedholo.astype(cp.float32)
+    print(type(paddedholo))
+    print("shape:", paddedholo.shape)
+    paddedholo = fixhololevel(paddedholo)
+    cimage = holo.process(paddedholo)
     return cimage
 
 datahome,_ = os.path.split(sys.argv[1])
 datahome,_ = os.path.split(datahome)
-### per image execution here ###
+### main program logic here ###
 imgptr = 1
 zi = 0
 print(f"CURPOS file: {datahome}/curpos.csv")
@@ -99,87 +97,131 @@ if os.path.exists(f"{datahome}/curpos.csv"):
     imgptr = int(pos[0])
     zi = int(pos[1])
 
+
+
+for imgptr in range(1, len(sys.argv)):
+    if not os.path.exists(sys.argv[imgptr]):
+        print(f"File not found: {sys.argv[imgptr]}")
+        sys.exit(1)
+    hologram = cp.array(cv2.imread(sys.argv[imgptr]))
+    hologram = fixhololevel(hologram)
+    if imgsum is None:
+        imgsum = hologram
+    else:
+        imgsum += hologram
+
+imgavg = fixhololevel(imgsum)
+#imgsum / (len(sys.argv)-1)
+
 escaped = False
 while not escaped:
     if len(sys.argv) < 2:
         break
 
-    cp.array(cv2.medianBlur(cv2.imread(sys.argv[imgptr]),3))
+    hologram = cp.array(cv2.medianBlur(cv2.imread(sys.argv[imgptr]),1))
 
     #hologram = fixhololevel(hologram)
     datahome, basename = os.path.split(sys.argv[imgptr])
     datahome, datalastdir = os.path.split(datahome)
 
-    if fftpad > 0:
-        paddedholo = padding.copy()
-        paddedholo[fftpad:-fftpad,fftpad:-fftpad] = hologram
-    else:
-        paddedholo = hologram.copy()
+    paddedholo = hologram.copy()
 
     cimage = makefig(paddedholo.get(), zi, imgptr)
+    cimage = fixhololevel(cimage)
+    #cimage = (cimage - cimage.min())
+    #cimage = cimage / cimage.max()
     if type(cimage) is np.ndarray:
         cimadj = np.abs(cimage.copy())
     else:
         cimadj = np.abs(cimage.get())
+    # focus measure using difference of gaussian edges
 
-    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.4,(0,0,0),2)
-    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (0,50),cv2.FONT_HERSHEY_DUPLEX,0.4,(255,255,155),1)
+    edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
+    edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (9,9),1)
+    edges = cv2.absdiff(edges, edges2)
+    edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
+    edges = cv2.GaussianBlur(edges, (3,3),0)
+    edges = cv2.GaussianBlur(edges, (3,3),0)
+    edges = cv2.GaussianBlur(edges, (3,3),0)
+    edges = cv2.GaussianBlur(edges, (3,3),0)
+    #edges = cv2.Laplacian((cimadj*255).astype(np.uint8), cv2.CV_8U, ksize=9)
+   
+    print(f"edges shape: {edges.shape}, edges type: {type(edges)}")
+    zi = np.clip(zi, 0, len(zees)-1)
+    cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
 
+    cimadj[...,2] = edges.copy()
+    cimadj[...,1] = edges.copy()
+    cimadj[...,0] = edges.copy()
+    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(0,0,0),3, cv2.LINE_AA)
+    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(55,255,255),1, cv2.LINE_AA)
+
+
+    if type(cimadj) is not np.ndarray:
+        cimadj = cimadj.get()
     while True:
-        if type(cimadj) is not np.ndarray:
-            cimadj = cimadj.get()
         cv2.imshow("image", cimadj)
         print(f"{imgptr},{zi}", file=open(f"{datahome}/curpos.csv", "w"))
         print(f"CURPOS:{imgptr},{zi}")
-        k=cv2.waitKey(0) & 255
+        k=cv2.waitKey(0)
+        print(f"Key pressed: {k}")
+        k = k & 0xFF
         if k == 27 or k == ord('q'):
             escaped=True
             break
 
-        # VI-like navigation keys
-        # h - previous image
-        if k == ord('h'):
+        # navigation keys
+        #
+        #   keyboard layout:
+        # y u i      <-- higher z (by 100,10,1)
+        # h j k      <-- lower z  (by 100,10,1)
+        #      . ,   (next/prev image)
+        # , - previous image
+        if k == ord(',') or k == 81:
             if imgptr > 1:
                 imgptr -= 1
                 break
-        # l - next image
-        if k == ord('l'):
+        # . - next image
+        if k == ord('.') or k == 83:
             if imgptr < len(sys.argv) - 1:
                 imgptr += 1
                 break
-        # j - lower z value
-        if k == ord('j'):
+
+        # k - lower z value
+        if k == ord('k'):
             if zi > 0:
                 zi -= 1
                 break
-        # k - higher z value
-        if k == ord('k'):
+        # i - higher z value
+        if k == ord('i'):
             if zi < len(zees) - 1:
                 zi += 1
                 break
-        # n - lower by 10 z values
-        if k == ord('n'):
+
+        # j - lower by 10 z values
+        if k == ord('j') or k == 84:
             if zi > 10:
                 zi -= 10
             else:
                 zi  = 0
             break
-        # i - higher by 10 z values
-        if k == ord('i'):
+        # u - higher by 10 z values
+        if k == ord('u') or k == 82:
             if zi < len(zees) - 11:
                 zi += 10
             else:
                 zi = len(zees)-1
             break
-        # b - lower by 100 z values
-        if k == ord('b'):
+
+        # h - lower by 100 z values
+        if k == ord('h'):
             if zi > 100:
                 zi -= 100
             else:
                 zi  = 0
             break
-        # o - higher by 100 z values
-        if k == ord('o'):
+        # y - higher by 100 z values
+        if k == ord('y'):
             if zi < len(zees) - 101:
                 zi += 100
             else:
