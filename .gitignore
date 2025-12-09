@@ -1,0 +1,13 @@
+*
+!src
+!src/*
+!src/*.py
+!src/*.sh
+src/*~
+!data
+!data/.data.dir
+!requirements*.txt
+!README.*
+!README
+!run.sh
+!.gitignore
