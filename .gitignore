@@ -6,8 +6,12 @@
 src/*~
 !data
 !data/.data.dir
+!src/old/
+!src/old/*
+src/old/*~
 !requirements*.txt
 !README.*
 !README
 !run.sh
 !.gitignore
+!setup.sh

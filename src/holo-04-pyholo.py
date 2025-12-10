@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 
+def updateprog(percentage, msg=""):
+    print (percentage,flush=True)
+    print(f"XXX\n{msg}\nXXX",flush=True)
+
+updateprog(0,"loading os,sys")
 import os,sys
+updateprog(20,"loading cv2")
 import cv2
+updateprog(40,"loading numpy")
 import numpy as np
-#import matplotlib.pyplot as plt
+updateprog(60,"loading cupy")
 import cupy
 import cupy as cp
+updateprog(80,"loading pyholoscope")
 import context
 import pyholoscope as pyh
 
+updateprog(100,"loading done")
 
 imgsum = None
+imgavg = None
 
 def fixhololevel(pdata):
     data = None
@@ -23,12 +33,10 @@ def fixhololevel(pdata):
     if type(data) is np.ndarray:
         data = cp.array(data)
     data = cp.abs(data) 
-    print(type(data))
     # normalize to 0..1
     data -= data.min()
     data /= data.max()
     # compute histogram
-    print(type(data))
     datahst = cp.histogram(data, bins=256, range=(0.0, 1.0))[0]
     # find most common value
     mostcommon = np.argmax(datahst)/256
@@ -56,7 +64,6 @@ def makefig(paddedholo, zi, imgptr):
     z = zees[zi]
     #d = cp.sqrt(r*r+z*z)
 
-    print (f"\n****** [{zi}/{len(zees)}] z={z:8.60f} ******")
 
     # Create an instance of the Holo class
     holo = pyh.Holo(
@@ -78,8 +85,6 @@ def makefig(paddedholo, zi, imgptr):
     if len(paddedholo.shape) > 2:
         paddedholo = paddedholo[...,1]
     paddedholo = paddedholo.astype(cp.float32)
-    print(type(paddedholo))
-    print("shape:", paddedholo.shape)
     paddedholo = fixhololevel(paddedholo)
     cimage = holo.process(paddedholo)
     return cimage
@@ -89,11 +94,9 @@ datahome,_ = os.path.split(datahome)
 ### main program logic here ###
 imgptr = 1
 zi = 0
-print(f"CURPOS file: {datahome}/curpos.csv")
-
+updateprog(0,"Checking for curpos.csv")
 if os.path.exists(f"{datahome}/curpos.csv"):
     pos = open(f"{datahome}/curpos.csv","r").read().split(',')
-    print(f"CURPOS={pos}")
     imgptr = int(pos[0])
     zi = int(pos[1])
 
@@ -103,6 +106,8 @@ for imgptr in range(1, len(sys.argv)):
     if not os.path.exists(sys.argv[imgptr]):
         print(f"File not found: {sys.argv[imgptr]}")
         sys.exit(1)
+    percentage = int(100 * (imgptr - 1) / (len(sys.argv) - 2))
+    updateprog(percentage,f"Loading images: {sys.argv[imgptr]}")
     hologram = cp.array(cv2.imread(sys.argv[imgptr]))
     hologram = fixhololevel(hologram)
     if imgsum is None:
@@ -111,14 +116,15 @@ for imgptr in range(1, len(sys.argv)):
         imgsum += hologram
 
 imgavg = fixhololevel(imgsum)
-#imgsum / (len(sys.argv)-1)
-
+updateprog(100,"Images loaded, average computed")
+print("100\nXXX\n",flush=True)    
+os.system('reset')
 escaped = False
 while not escaped:
     if len(sys.argv) < 2:
         break
 
-    hologram = cp.array(cv2.medianBlur(cv2.imread(sys.argv[imgptr]),1))
+    hologram = cp.array(cv2.imread(sys.argv[imgptr]))
 
     #hologram = fixhololevel(hologram)
     datahome, basename = os.path.split(sys.argv[imgptr])
@@ -127,9 +133,6 @@ while not escaped:
     paddedholo = hologram.copy()
 
     cimage = makefig(paddedholo.get(), zi, imgptr)
-    cimage = fixhololevel(cimage)
-    #cimage = (cimage - cimage.min())
-    #cimage = cimage / cimage.max()
     if type(cimage) is np.ndarray:
         cimadj = np.abs(cimage.copy())
     else:
@@ -139,20 +142,12 @@ while not escaped:
     edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
     edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (9,9),1)
     edges = cv2.absdiff(edges, edges2)
-    edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
-    edges = cv2.GaussianBlur(edges, (3,3),0)
-    edges = cv2.GaussianBlur(edges, (3,3),0)
-    edges = cv2.GaussianBlur(edges, (3,3),0)
-    edges = cv2.GaussianBlur(edges, (3,3),0)
-    #edges = cv2.Laplacian((cimadj*255).astype(np.uint8), cv2.CV_8U, ksize=9)
-   
-    print(f"edges shape: {edges.shape}, edges type: {type(edges)}")
     zi = np.clip(zi, 0, len(zees)-1)
     cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
 
-    cimadj[...,2] = edges.copy()
-    cimadj[...,1] = edges.copy()
-    cimadj[...,0] = edges.copy()
+    #cimadj[...,2] = edges.copy()
+    ##cimadj[...,1] = edges.copy()
+    #cimadj[...,0] = edges.copy()
     cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(0,0,0),3, cv2.LINE_AA)
     cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(55,255,255),1, cv2.LINE_AA)
 
@@ -162,9 +157,7 @@ while not escaped:
     while True:
         cv2.imshow("image", cimadj)
         print(f"{imgptr},{zi}", file=open(f"{datahome}/curpos.csv", "w"))
-        print(f"CURPOS:{imgptr},{zi}")
         k=cv2.waitKey(0)
-        print(f"Key pressed: {k}")
         k = k & 0xFF
         if k == 27 or k == ord('q'):
             escaped=True
