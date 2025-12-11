@@ -31,8 +31,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv --seed -p python3.13
 
 source ./.venv/bin/activate
-# ironically uv does not place itself in the venv, so we have to use plain pip
-# to install uv. Too bad the --seed option doesn't do that for us.
+# ironically uv does not place itself in the venv, even with
+# the --seed option, so we have to use plain pip to install uv. 
+# Strange that the --seed option doesn't do that for us.
 pip install uv
 # now we can use uv to install the rest of the requirements
 # torch
@@ -47,3 +48,4 @@ git clone https://github.com/MikeHughesKent/PyHoloscope.git
 echo -e "\e[999;1H\nSetup complete. To activate the virtual environment, run:\n\n    source ./.venv/bin/activate\n"
 echo "Place data files into data/ directory as needed."
 echo "To run the system, use the command ./run.sh"
+
