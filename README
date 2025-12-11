@@ -12,7 +12,7 @@ run these commands one line at a time, by copy and paste:
 git clone https://github.com/tomviolin/holosurf
 cd holosurf
 ./setup.sh
-wget -O holsurf.tar.gz 'https://drive.google.com/file/d/1IgrqIjhcmsLBKlywZag9NvgJxSeNuBIP/view?usp=sharing'
+wget -O holosurf.tar.gz 'https://drive.google.com/file/d/1IgrqIjhcmsLBKlywZag9NvgJxSeNuBIP/view?usp=sharing'
 tar -xvf holosurf.tar.gz
 ---- end bash commands ----
 
@@ -27,6 +27,15 @@ run the following command:
 
 If it fails at any point try the following:
 sudo apt install dialog
+
+If it fails with errors about tryting to locate libcudnn.so.11 or some such, you may need to do
+something like
+
+apt install nvidia-libcudnn-dev-11
+
+Sorry I can't be more specific, but YMMV. I've only run this on two systems so far. Once had freshly installed Ubuntu on it and
+it had a bunch of libraries missing.  The other one is a an older workhorse machine that had the same version of Ubuntu (22.04 Jammy) but 
+it had all the libraries already installed so it worked the first time.
 
 USING THE PROGRAM:
 
