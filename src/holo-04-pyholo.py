@@ -153,6 +153,9 @@ while not escaped:
     paddedholo = hologram.copy()
 
     cimage = makefig(paddedholo.get(), zi)
+
+    hist = np.histogram(np.abs(cimage), bins=256, range=(0.0, 1.0))[0]
+
     if type(cimage) is np.ndarray:
         cimadj = np.abs(cimage.copy())
     else:
@@ -160,21 +163,28 @@ while not escaped:
     # focus measure using difference of gaussian edges
 
     updateprog(33,f"processing image: {sys.argv[imgptr]}")
-    edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
-    edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (9,9),1)
-    edges = cv2.absdiff(edges, edges2)
+    #edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
+    #edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),8)
+    #edges = cv2.absdiff(edges, edges2)
+    #edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
+
     zi = np.clip(zi, 0, len(zees)-1)
     cimadj = fixhololevel(cimadj).get()
+    peaks  = cimadj < np.quantile(cimadj,0.001)
     cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    cimadj = cv2.medianBlur(cimadj, 5)
+    cimadj[...,1][peaks] = 255
+    #cimadj = cv2.medianBlur(cimadj, 5)
     updateprog(66,f"annotating image: {sys.argv[imgptr]}")
     #cimadj[...,2] = edges.copy()
     ##cimadj[...,1] = edges.copy()
     #cimadj[...,0] = edges.copy()
     cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(0,0,0),3, cv2.LINE_AA)
     cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(55,255,255),1, cv2.LINE_AA)
-
-
+    bins = len(hist)
+    for i in range(bins):
+        xcoord = int(i * cimadj.shape[1] / bins)
+        ycoord = int(cimadj.shape[0] - int(np.log(1+(hist[i]))) * (cimadj.shape[0]/8) / max(np.log(1+hist)))
+        cv2.rectangle(cimadj, ( xcoord, cimadj.shape[0]),( xcoord+int(1/bins*cimadj.shape[1]), ycoord), (0,255,255), -1)
     if type(cimadj) is not np.ndarray:
         cimadj = cimadj.get()
     updateprog(100,f"displaying image: {sys.argv[imgptr]}")
