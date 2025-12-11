@@ -9,16 +9,17 @@ if [ $? -ne 0 ]; then
 	echo -e "\e[999;1H\nCancelled."
 	exit 1
 fi
+echo -e "\e[999;1H\n"
 choice=$(cat /tmp/cuda_ver$$.txt)
 if [ "$choice" == "CUDA-11.8" ]; then
 	TORCH_CUDA_VER="-cu118"
 	CUPY_CUDA_VER="cupy-cuda11x"
-elif [ "$choice" == "CUDA-12.8" ]; then
+elif [ "$choice" == "CUDA-12.1" ]; then
 	TORCH_CUDA_VER="-cu121"
 	CUPY_CUDA_VER="cupy-cuda12x"
 else
-	TORCH_CUDA_VER="-default"
-	CUPY_CUDA_VER="cupy"
+	echo -e "\e[999;1H\nBad selection."
+	exit
 fi
 
 rm -f /tmp/cudaver$$.txt
@@ -37,8 +38,10 @@ source ./.venv/bin/activate
 pip install uv
 # now we can use uv to install the rest of the requirements
 # torch
+echo -e "\e[1m>>>\e[0m uv pip install -r requirements-torch$TORCH_CUDA_VER.txt"
 uv pip install -r requirements-torch$TORCH_CUDA_VER.txt
 # cupy
+echo -e "\e[1m>>>\e[0m uv pip install -r requirements-$CUPY_CUDA_VER.txt"
 uv pip install -r requirements-$CUPY_CUDA_VER.txt
 # other requirements
 uv pip install -r requirements.txt

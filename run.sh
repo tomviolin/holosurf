@@ -21,12 +21,12 @@ for datadir in data/*; do
 	c=$((c+1))
 done
 echo $options
-$our_dialog --menu "Choose a dataset to process" 10 30 8 $options 2> /tmp/choice.txt
+$our_dialog --menu "Choose a dataset to process" 10 30 8 $options 2> /tmp/choice$$.txt
 if [[ $? != 0 ]]; then
 	echo "Cancelled"
 	exit 1
 fi
-dataset=$(cat /tmp/choice.txt)
+dataset=$(cat /tmp/choice$$.txt)
 
 
 ./src/holo-04-pyholo.py data/$dataset/raw/frame*.png   | \
