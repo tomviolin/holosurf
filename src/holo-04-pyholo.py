@@ -4,8 +4,11 @@ def updateprog(percentage, msg=""):
     print (percentage,flush=True)
     print(f"XXX\n{msg}\nXXX",flush=True)
 
-updateprog(0,"loading os,sys")
-import os,sys
+
+
+
+updateprog(0,"loading os,sys,logging")
+import os,sys,logging
 updateprog(20,"loading cv2")
 import cv2
 updateprog(40,"loading numpy")
@@ -18,6 +21,23 @@ import context
 import pyholoscope as pyh
 
 updateprog(100,"loading done")
+
+
+def global_exception_handler(exctype, value, tb):
+    import traceback
+    tb_lines = traceback.format_exception(exctype, value, tb)
+    tb_text = ''.join(tb_lines)
+    os.system('stty sane');
+    print("\x1b[999;1H\nAn unhandled exception occurred:\n", tb_text, flush=True, file=sys.stderr)
+    sys.exit(1)
+
+sys.excepthook = global_exception_handler
+
+def force_exit(msg):
+    os.system('stty sane');
+    print(msg, flush=True, file=sys.stderr)
+    sys.exit(1)
+
 
 imgsum = None
 imgavg = None
@@ -57,7 +77,7 @@ dx = 1.12e-6
 
 zees = np.arange(wavelen*50, 0.01, wavelen*10) 
 
-def makefig(paddedholo, zi, imgptr):
+def makefig(paddedholo, zi):
     # these will change
     global zees, r
     zi=np.clip(zi, 0, len(zees)-1)
@@ -96,19 +116,18 @@ imgptr = 1
 zi = 0
 updateprog(0,"Checking for curpos.csv")
 if os.path.exists(f"{datahome}/curpos.csv"):
-    pos = open(f"{datahome}/curpos.csv","r").read().split(',')
+    pos = open(f"{datahome}/curpos.csv","r").read().strip().split(',')
     imgptr = int(pos[0])
     zi = int(pos[1])
 
 
 
-for imgptr in range(1, len(sys.argv)):
-    if not os.path.exists(sys.argv[imgptr]):
-        print(f"File not found: {sys.argv[imgptr]}")
-        sys.exit(1)
-    percentage = int(100 * (imgptr - 1) / (len(sys.argv) - 2))
-    updateprog(percentage,f"Loading images: {sys.argv[imgptr]}")
-    hologram = cp.array(cv2.imread(sys.argv[imgptr]))
+for imgp in range(1, len(sys.argv)):
+    if not os.path.exists(sys.argv[imgp]):
+        force_exit(f"File not found: {sys.argv[imgp]}")
+    percentage = int(100 * (imgp - 1) / (len(sys.argv) - 2))
+    updateprog(percentage,f"Loading images: {sys.argv[imgp]}")
+    hologram = cv2.imread(sys.argv[imgp])
     hologram = fixhololevel(hologram)
     if imgsum is None:
         imgsum = hologram
@@ -117,13 +136,14 @@ for imgptr in range(1, len(sys.argv)):
 
 imgavg = fixhololevel(imgsum)
 updateprog(100,"Images loaded, average computed")
-print("100\nXXX\n",flush=True)    
-os.system('reset')
+print("100\nXXX",flush=True)    
 escaped = False
+windowCreated = False
+windowName = "image"
 while not escaped:
     if len(sys.argv) < 2:
         break
-
+    updateprog(0,f"Loading image: {sys.argv[imgptr]}")
     hologram = cp.array(cv2.imread(sys.argv[imgptr]))
 
     #hologram = fixhololevel(hologram)
@@ -132,19 +152,22 @@ while not escaped:
 
     paddedholo = hologram.copy()
 
-    cimage = makefig(paddedholo.get(), zi, imgptr)
+    cimage = makefig(paddedholo.get(), zi)
     if type(cimage) is np.ndarray:
         cimadj = np.abs(cimage.copy())
     else:
         cimadj = np.abs(cimage.get())
     # focus measure using difference of gaussian edges
 
+    updateprog(33,f"processing image: {sys.argv[imgptr]}")
     edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
     edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (9,9),1)
     edges = cv2.absdiff(edges, edges2)
     zi = np.clip(zi, 0, len(zees)-1)
+    cimadj = fixhololevel(cimadj).get()
     cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-
+    cimadj = cv2.medianBlur(cimadj, 5)
+    updateprog(66,f"annotating image: {sys.argv[imgptr]}")
     #cimadj[...,2] = edges.copy()
     ##cimadj[...,1] = edges.copy()
     #cimadj[...,0] = edges.copy()
@@ -154,15 +177,26 @@ while not escaped:
 
     if type(cimadj) is not np.ndarray:
         cimadj = cimadj.get()
+    updateprog(100,f"displaying image: {sys.argv[imgptr]}")
     while True:
-        cv2.imshow("image", cimadj)
-        print(f"{imgptr},{zi}", file=open(f"{datahome}/curpos.csv", "w"))
+        if not windowCreated:
+            cv2.namedWindow(windowName, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(windowName, 800,800)
+            cv2.setWindowTitle(windowName, "Hologram Viewer - Press 'q' or ESC to quit")
+            cv2.imshow(windowName, cimadj)
+            cv2.moveWindow(windowName, 0,0)
+            windowCreated = True
+        else:
+            cv2.imshow(windowName, cimadj)
         k=cv2.waitKey(0)
-        k = k & 0xFF
-        if k == 27 or k == ord('q'):
-            escaped=True
+        if k == ord('q') or k == 27:
+            escaped = True
             break
 
+        updateprog(100,f"waiting for user keyboard input")
+
+        print(f"{imgptr},{zi}", file=open(f"{datahome}/_curpos.csv", "w"))
+        os.rename(f"{datahome}/_curpos.csv", f"{datahome}/curpos.csv")
         # navigation keys
         #
         #   keyboard layout:
@@ -176,7 +210,7 @@ while not escaped:
                 break
         # . - next image
         if k == ord('.') or k == 83:
-            if imgptr < len(sys.argv) - 1:
+            if imgptr < len(sys.argv)-1:
                 imgptr += 1
                 break
 

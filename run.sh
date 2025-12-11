@@ -1,7 +1,17 @@
 #!/bin/bash
 
 # Run the hologram preparations and reconstruction
-# takes a single argument, which is the data set name.
+
+if [ "$VIRTUAL_ENV_PROMPT" != "holosurf" ]; then
+	source .venv/bin/activate
+fi
+if [ "$VIRTUAL_ENV_PROMPT" != "holosurf" ]; then
+	echo "Please activate the holosurf virtual environment first:"
+	echo "  source ~/holosurf/venv/bin/activate"
+	exit 1
+fi
+
+our_dialog=dialog
 dataset=this
 
 options=""
@@ -11,7 +21,7 @@ for datadir in data/*; do
 	c=$((c+1))
 done
 echo $options
-dialog --menu "Choose a dataset to process" 10 30 8 $options 2> /tmp/choice.txt
+$our_dialog --menu "Choose a dataset to process" 10 30 8 $options 2> /tmp/choice.txt
 if [[ $? != 0 ]]; then
 	echo "Cancelled"
 	exit 1
@@ -19,7 +29,8 @@ fi
 dataset=$(cat /tmp/choice.txt)
 
 
-./src/holo-04-pyholo.py data/$dataset/raw/frame*.png  | \
- dialog --gauge "Preparing holograms..." 10 50 0
-dialog --clear
+./src/holo-04-pyholo.py data/$dataset/raw/frame*.png   | \
+		$our_dialog --gauge "Preparing holograms..." 15 70 10
+
+echo -e '\e[999;1H\n' # Move cursor to bottom
 
