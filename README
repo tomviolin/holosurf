@@ -12,9 +12,14 @@ run these commands one line at a time, by copy and paste:
 git clone https://github.com/tomviolin/holosurf
 cd holosurf
 ./setup.sh
-wget -O holosurfdata.tgz \
-'https://drive.google.com/file/d/1IgrqIjhcmsLBKlywZag9NvgJxSeNuBIP/view?usp=drive_link'
-tar -xvf holosurf.tar.gz
+---- end bash commands ----
+
+Now use a web browser to go to this URL and download the file
+https://drive.google.com/file/d/1QCcBxBJc_BcrmQfoYrcya0Wh5UIW7Rw9/view?usp=sharing
+and place it in the current folder.
+
+---- begin bash commands ---
+tar -xzvf holosurfdata2-0.tgz
 ---- end bash commands ----
 
 
