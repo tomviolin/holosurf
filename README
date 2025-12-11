@@ -1,3 +1,66 @@
+Instructions:
+
+This runs on Ubuntu with a NVidia card that has CUDA 11.x or 12.x.
+Make sure you have the latest CUDA drivers for your card.
+
+TO INSTALL
+Open a terminal.
+cd to the directory under which you want to install holosurf
+run these commands one line at a time, by copy and paste:
+
+---- begin bash commands ----
+git clone https://github.com/tomviolin/holosurf
+cd holosurf
+./setup.py
+wget -O holsurf.tar.gz 'https://drive.google.com/file/d/1IgrqIjhcmsLBKlywZag9NvgJxSeNuBIP/view?usp=sharing'
+tar -xvf holosurf.tar.gz
+---- end bash commands ----
+
+
+TO RUN:
+cd to the holosurf directory.
+run the following command:
+
+---- begin bash commands ----
+./run.sh
+---- end bash commands ----
+
+If it fails at any point try the following:
+sudo apt install dialog
+
+USING THE PROGRAM:
+
+If everythings worked, you should see a window with a hologram.  Near the top there will be info on the z value being reconstructed, and the hologram file
+current being reconstructed.
+
+KEYS TO PRESS:
+
+IMAGE SEQUENCING/SLIDES
+The right arrow key selects the next hologram image. If you hit the end of the images, it just stays there.
+The left arrow select the previous image. If you hit the beginning, it just stays there.
+
+MOVING/FOCUSING AT DIFFERENT DEPTHS:
+The up arrow moves the point of focus farther away from the image sensor.
+The down arrow moves the point of focus closer to the image sensor.
+
+The are also a set of pairs of keys for moving up or down through the depth field at different rates, similar to
+the up and down arrows:
+
+The Y/H pair goes up/down in 100 steps of Z.
+The U/J pair goes up/down in 10 steps of Z (like the arrow keys).
+The I/K pair goes up/down in 1 step of Z.
+
+You can also use the comma to back an image, and the period to go forward, in the same exact way as
+the arrow keys. These two keys were selected because
+
+(a) many video players and YouTube uses those two keys for stepping through a video file on frame at a time. 
+(b) On most keyboards the shifted characters for the , and . characters are < and > which resemble arrows pointing to the left and right. 
+(c) Finally they are closer to the alternate depth controlling keys which can help if you are operating the viewer with one hand.
+
+
+
+---- tech details ----
+
 datasets (sets of holograms) are all stored in directories under 
 the "data" subdirectory.  They must be of the form, including the data folder itself:
 
