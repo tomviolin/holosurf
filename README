@@ -11,7 +11,7 @@ run these commands one line at a time, by copy and paste:
 ---- begin bash commands ----
 git clone https://github.com/tomviolin/holosurf
 cd holosurf
-./setup.py
+./setup.sh
 wget -O holsurf.tar.gz 'https://drive.google.com/file/d/1IgrqIjhcmsLBKlywZag9NvgJxSeNuBIP/view?usp=sharing'
 tar -xvf holosurf.tar.gz
 ---- end bash commands ----
