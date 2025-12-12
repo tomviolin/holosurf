@@ -20,17 +20,21 @@ for datadir in data/*; do
 	options="$options ${datadir#data/} $c"
 	c=$((c+1))
 done
-echo $options
-$our_dialog --menu "Choose a dataset to process" 10 30 8 $options 2> /tmp/choice$$.txt
+if [ -f data/.lastdir.txt ]; then
+	def="--default-item `cat data/.lastdir.txt`"
+else
+	def=""
+fi
+$our_dialog $def --menu  "Choose a dataset to process" 19 30 8 $options 2> /tmp/choice$$.txt
 if [[ $? != 0 ]]; then
 	echo "Cancelled"
 	exit 1
 fi
 dataset=$(cat /tmp/choice$$.txt)
-
+echo $dataset > data/.lastdir.txt
 
 ./src/holo-04-pyholo.py data/$dataset/raw/frame*.png   | \
-		$our_dialog --gauge "Preparing holograms..." 15 70 10
+		$our_dialog --gauge "Preparing holograms..." 19 70 10
 
 echo -e '\e[999;1H\n' # Move cursor to bottom
 
