@@ -4,9 +4,6 @@ def updateprog(percentage, msg=""):
     print (percentage,flush=True)
     print(f"XXX\n{msg}\nXXX",flush=True)
 
-
-
-
 updateprog(0,"loading os,sys,logging")
 import os,sys,logging
 updateprog(20,"loading cv2")
