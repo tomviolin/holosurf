@@ -21,7 +21,7 @@ for datadir in data/*; do
 	c=$((c+1))
 done
 echo $options
-$our_dialog --menu "Choose a dataset to process" 10 30 8 $options 2> /tmp/choice$$.txt
+$our_dialog --menu "Choose a dataset to process" 20 30 18 $options 2> /tmp/choice$$.txt
 if [[ $? != 0 ]]; then
 	echo "Cancelled"
 	exit 1

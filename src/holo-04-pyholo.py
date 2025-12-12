@@ -140,6 +140,7 @@ print("100\nXXX",flush=True)
 escaped = False
 windowCreated = False
 windowName = "image"
+showEdges = False
 while not escaped:
     if len(sys.argv) < 2:
         break
@@ -163,16 +164,18 @@ while not escaped:
     # focus measure using difference of gaussian edges
 
     updateprog(33,f"processing image: {sys.argv[imgptr]}")
-    #edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
-    #edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),8)
-    #edges = cv2.absdiff(edges, edges2)
-    #edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
+    edges = cv2.GaussianBlur(cimadj, (5,5),4)
+    edges2= cv2.GaussianBlur(cimadj, (5,5),8)
+    edges = cv2.absdiff(edges, edges2)
+    edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
 
     zi = np.clip(zi, 0, len(zees)-1)
     cimadj = fixhololevel(cimadj).get()
-    peaks  = cimadj < np.quantile(cimadj,0.001)
+    
+    peaks  = cimadj < np.quantile(cimadj,0.004)
     cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    cimadj[...,1][peaks] = 255
+    #cimadj[...,1][peaks] = 255
+    if showEdges: cimadj[...,1]=edges
     #cimadj = cv2.medianBlur(cimadj, 5)
     updateprog(66,f"annotating image: {sys.argv[imgptr]}")
     #cimadj[...,2] = edges.copy()
@@ -214,12 +217,12 @@ while not escaped:
         # h j k      <-- lower z  (by 100,10,1)
         #      . ,   (next/prev image)
         # , - previous image
-        if k == ord(',') or k == 81:
+        if k == ord(',') or k == 81 or k == 8:
             if imgptr > 1:
                 imgptr -= 1
                 break
         # . - next image
-        if k == ord('.') or k == 83:
+        if k == ord('.') or k == 83 or k==32:
             if imgptr < len(sys.argv)-1:
                 imgptr += 1
                 break
@@ -265,3 +268,6 @@ while not escaped:
                 zi = len(zees)-1
             break
 
+        if k == ord('e'):
+            showEdges = not showEdges;
+            break
