@@ -6,14 +6,14 @@ def updateprog(percentage, msg=""):
 
 updateprog(0,"loading os,sys,logging")
 import os,sys,logging
-updateprog(20,"loading cv2")
+updateprog(10,"loading cv2")
 import cv2
-updateprog(40,"loading numpy")
+updateprog(20,"loading numpy")
 import numpy as np
-updateprog(60,"loading cupy")
+updateprog(30,"loading cupy")
 import cupy
 import cupy as cp
-updateprog(80,"loading pyholoscope")
+updateprog(40,"loading pyholoscope")
 import context
 import pyholoscope as pyh
 
@@ -64,15 +64,35 @@ def fixhololevel(pdata):
 
     return data
 
+fixhl = fixhololevel
 
-#img_size = 512
 
 # holo params
 wavelen = 650.0e-9
 dx = 1.12e-6
+
+
+
+# Create an instance of the Holo class
+holo = pyh.Holo(
+    mode=pyh.INLINE,  # For inline holography
+    wavelength=wavelen,  # Light wavelength, m
+    pixel_size=dx,  # Hologram physical pixel size, m
+#    background=background,  # To subtract the background
+    #depth=zees[zi],
+    invert=False,
+    cuda=True,
+    #background=imgavg
+)  # Distance to refocus, m
+
+
+
+
+#img_size = 512
+
 #r = cp.sqrt(x*x + y*y) * dx
 
-zees = np.arange(wavelen*50, 0.01, wavelen*10) 
+zees = np.arange(wavelen*50, 0.01, wavelen*1) 
 
 def makefig(paddedholo, zi):
     # these will change
@@ -81,20 +101,7 @@ def makefig(paddedholo, zi):
     z = zees[zi]
     #d = cp.sqrt(r*r+z*z)
 
-
-    # Create an instance of the Holo class
-    holo = pyh.Holo(
-        mode=pyh.INLINE,  # For inline holography
-        wavelength=wavelen,  # Light wavelength, m
-        pixel_size=dx,  # Hologram physical pixel size, m
-    #    background=background,  # To subtract the background
-        depth=zees[zi],
-        invert=False,
-        cuda=True,
-        background=imgavg
-    )  # Distance to refocus, m
-
-    
+    holo.set_depth(z)
     # Refocus
     
     if type(paddedholo) is np.ndarray:
@@ -103,7 +110,11 @@ def makefig(paddedholo, zi):
         paddedholo = paddedholo[...,1]
     paddedholo = paddedholo.astype(cp.float32)
     paddedholo = fixhololevel(paddedholo)
+
+    paddedholo = fixhl((paddedholo + 0.01) / (imgavg + 0.01))
+
     cimage = holo.process(paddedholo)
+
     return cimage
 
 datahome,_ = os.path.split(sys.argv[1])
@@ -121,7 +132,8 @@ if os.path.exists(f"{datahome}/curpos.csv"):
 
 for imgp in range(1, len(sys.argv)):
     if not os.path.exists(sys.argv[imgp]):
-        force_exit(f"File not found: {sys.argv[imgp]}")
+        updateprog(f"\x1b[36;1mFile not found: {sys.argv[imgp]}\x1b[0m")
+        continue
     percentage = int(100 * (imgp - 1) / (len(sys.argv) - 2))
     updateprog(percentage,f"Loading images: {sys.argv[imgp]}")
     hologram = cv2.imread(sys.argv[imgp])
@@ -132,6 +144,7 @@ for imgp in range(1, len(sys.argv)):
         imgsum += hologram
 
 imgavg = fixhololevel(imgsum)
+cimgavg = cp.array(imgavg)
 updateprog(100,"Images loaded, average computed")
 print("100\nXXX",flush=True)    
 escaped = False
@@ -140,7 +153,7 @@ windowName = "image"
 while not escaped:
     if len(sys.argv) < 2:
         break
-    updateprog(0,f"Loading image: {sys.argv[imgptr]}")
+    ### updateprog(0,f"Loading image: {sys.argv[imgptr]}")
     hologram = cp.array(cv2.imread(sys.argv[imgptr]))
 
     #hologram = fixhololevel(hologram)
@@ -149,52 +162,59 @@ while not escaped:
 
     paddedholo = hologram.copy()
 
-    cimage = makefig(paddedholo.get(), zi)
+    cimage = makefig(paddedholo, zi)
 
     hist = np.histogram(np.abs(cimage), bins=256, range=(0.0, 1.0))[0]
 
     if type(cimage) is np.ndarray:
-        cimadj = np.abs(cimage.copy())
+        cimag2 = np.abs(cimage.copy())
     else:
-        cimadj = np.abs(cimage.get())
+        cimag2 = np.abs(cimage.get())
+
+
     # focus measure using difference of gaussian edges
 
-    updateprog(33,f"processing image: {sys.argv[imgptr]}")
-    #edges = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),1)
-    #edges2 = cv2.GaussianBlur((cimadj*255).astype(np.uint8), (5,5),8)
+    ### updateprog(33,f"processing image: {sys.argv[imgptr]}")
+    #edges = cv2.GaussianBlur((cimag2*255).astype(np.uint8), (5,5),1)
+    #edges2 = cv2.GaussianBlur((cimag2*255).astype(np.uint8), (5,5),8)
     #edges = cv2.absdiff(edges, edges2)
     #edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
 
     zi = np.clip(zi, 0, len(zees)-1)
-    cimadj = fixhololevel(cimadj).get()
-    peaks  = cimadj < np.quantile(cimadj,0.001)
-    cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    cimadj[...,1][peaks] = 255
-    #cimadj = cv2.medianBlur(cimadj, 5)
-    updateprog(66,f"annotating image: {sys.argv[imgptr]}")
-    #cimadj[...,2] = edges.copy()
-    ##cimadj[...,1] = edges.copy()
-    #cimadj[...,0] = edges.copy()
-    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(0,0,0),3, cv2.LINE_AA)
-    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(55,255,255),1, cv2.LINE_AA)
+    cimag2 = fixhololevel(cimag2).get()
+
+    peaks  = cimag2 < np.quantile(cimag2,0.001)
+    cimag2 = cv2.cvtColor((cimag2*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    cimag2[...,1][peaks] = 255
+    #cimag2 = cv2.medianBlur(cimag2, 5)
+    ##updateprog(66,f"annotating image: {sys.argv[imgptr]}")
+    #cimag2[...,2] = edges.copy()
+    ##cimag2[...,1] = edges.copy()
+    #cimag2[...,0] = edges.copy()
+    cv2.putText(cimag2,
+                f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", 
+                (1,51),cv2.FONT_HERSHEY_SIMPLEX,1.0,(0,0,0),6, cv2.LINE_AA)
+    cv2.putText(cimag2,
+                f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", 
+                (1,51),cv2.FONT_HERSHEY_SIMPLEX,1.0,(55,255,255),2, cv2.LINE_AA)
     bins = len(hist)
     for i in range(bins):
-        xcoord = int(i * cimadj.shape[1] / bins)
-        ycoord = int(cimadj.shape[0] - int(np.log(1+(hist[i]))) * (cimadj.shape[0]/8) / max(np.log(1+hist)))
-        cv2.rectangle(cimadj, ( xcoord, cimadj.shape[0]),( xcoord+int(1/bins*cimadj.shape[1]), ycoord), (0,255,255), -1)
-    if type(cimadj) is not np.ndarray:
-        cimadj = cimadj.get()
+        xcoord = int(i * cimag2.shape[1] / bins)
+        ycoord = int(cimag2.shape[0] - int(np.log(1+(hist[i]))) * (cimag2.shape[0]/8) / max(np.log(1+hist)))
+        cv2.rectangle(cimag2, ( xcoord, cimag2.shape[0]),( xcoord+int(1/bins*cimag2.shape[1]), ycoord), (0,255,255), -1)
+    if type(cimag2) is not np.ndarray:
+        cimag2 = cimag2.get()
     updateprog(100,f"displaying image: {sys.argv[imgptr]}")
     while True:
         if not windowCreated:
             cv2.namedWindow(windowName, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(windowName, 800,800)
             cv2.setWindowTitle(windowName, "Hologram Viewer - Press 'q' or ESC to quit")
-            cv2.imshow(windowName, cimadj)
+            cv2.imshow(windowName, cimag2)
             cv2.moveWindow(windowName, 0,0)
             windowCreated = True
         else:
-            cv2.imshow(windowName, cimadj)
+            cv2.imshow(windowName, cimag2)
         k=cv2.waitKey(0)
         if k == ord('q') or k == 27:
             escaped = True

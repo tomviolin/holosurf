@@ -1,5 +1,5 @@
 #!/bin/bash
-
+shopt -s nullglob
 # Run the hologram preparations and reconstruction
 
 if [ "$VIRTUAL_ENV_PROMPT" != "holosurf" ]; then
@@ -33,7 +33,7 @@ fi
 dataset=$(cat /tmp/choice$$.txt)
 echo $dataset > data/.lastdir.txt
 
-./src/holo-04-pyholo.py data/$dataset/raw/frame*.png   | \
+./src/holo-04-pyholo.py data/$dataset/raw/{frame,Qt,frn}*.{png,jpg,tif}   | \
 		$our_dialog --gauge "Preparing holograms..." 19 70 10
 
 echo -e '\e[999;1H\n' # Move cursor to bottom
