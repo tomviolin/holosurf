@@ -108,7 +108,7 @@ def makefig(holoin, zi):
     else:
         alpha = 0.01
         imgavg = imgavg * (1.0-alpha) + holoin * alpha
-        beta = 0.5
+        beta = 1.0
         finavg = finavg * (1.0-beta) + holoin * beta
 
     paddedholo = holoin.copy()
