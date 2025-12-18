@@ -12,6 +12,6 @@ src/old/*~
 !requirements*.txt
 !README.*
 !README
-!run.sh
+!run*.sh
 !.gitignore
 !setup.sh
