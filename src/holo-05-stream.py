@@ -108,10 +108,10 @@ def makefig(holoin, zi):
     else:
         alpha = 0.01
         imgavg = imgavg * (1.0-alpha) + holoin * alpha
-        beta = 0.05
+        beta = 0.5
         finavg = finavg * (1.0-beta) + holoin * beta
 
-    paddedholo = finavg.copy()
+    paddedholo = holoin.copy()
     
     # Refocus
     
@@ -144,7 +144,7 @@ if os.path.exists(f"{datahome}/curpos.csv"):
 """
 
 
-cap  = cv2.VideoCapture("http://10.24.31.95:81/stream", )
+cap  = cv2.VideoCapture("http://esp32s3-f109e8.wifi.uwm.edu:81/stream", )
 
 
 capok,capframe = cap.read()
@@ -174,7 +174,7 @@ showEdges = False
 while capok and (not escaped):
     updateprog(50,f"Loading image: {image_counter}")
     capframe = cv2.cvtColor(capframe, cv2.COLOR_BGR2GRAY)
-    hologram = cp.array(capframe)
+    hologram = cp.float32(capframe)/255.0
 
     #hologram = fixhololevel(hologram)
     #datahome, basename = os.path.split(sys.argv[imgptr])
@@ -182,9 +182,9 @@ while capok and (not escaped):
 
     paddedholo = hologram.copy()
 
-    cimage = makefig(paddedholo.get(), zi)
+    cimage = makefig(paddedholo, zi)
 
-    hist = np.histogram(np.abs(cimage), bins=256, range=(0.0, 1.0))[0]
+    hist = np.histogram(np.abs(cimage), bins=cimage.shape[1], range=(0.0, 1.0))[0]
 
     if type(cimage) is np.ndarray:
         cimadj = np.abs(cimage.copy())
@@ -215,7 +215,7 @@ while capok and (not escaped):
     bins = len(hist)
     for i in range(bins):
         xcoord = int(i * cimadj.shape[1] / bins)
-        ycoord = int(cimadj.shape[0] - int(np.log(1+(hist[i]))) * (cimadj.shape[0]/8) / max(np.log(1+hist)))
+        ycoord = cimadj.shape[0]-hist[i]
         cv2.rectangle(cimadj, ( xcoord, cimadj.shape[0]),( xcoord+int(1/bins*cimadj.shape[1]), ycoord), (0,255,255), -1)
     if type(cimadj) is not np.ndarray:
         cimadj = cimadj.get()
