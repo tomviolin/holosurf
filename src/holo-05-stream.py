@@ -71,10 +71,10 @@ def fixhololevel(pdata):
 
 # holo params
 wavelen = 650.0e-9
-dx = 1.12e-6
+dx = 5.12e-6
 #r = cp.sqrt(x*x + y*y) * dx
 
-zees = np.arange(wavelen*50, 0.01, wavelen*2) 
+zees = np.arange(0.0000, 0.01, wavelen*2) 
 
 
 # Create an instance of the Holo class
@@ -193,10 +193,10 @@ while capok and (not escaped):
     # focus measure using difference of gaussian edges
 
     updateprog(60,f"processing image: {image_counter}")
-    edges = cv2.GaussianBlur(cimadj, (5,5),4)
-    edges2= cv2.GaussianBlur(cimadj, (5,5),8)
-    edges = cv2.absdiff(edges, edges2)
-    edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
+    #edges = cv2.GaussianBlur(cimadj, (5,5),4)
+    #edges2= cv2.GaussianBlur(cimadj, (5,5),8)
+    #edges = cv2.absdiff(edges, edges2)
+    #edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
 
     zi = np.clip(zi, 0, len(zees)-1)
     cimadj = fixhololevel(cimadj).get()
@@ -204,7 +204,7 @@ while capok and (not escaped):
     peaks  = cimadj < np.quantile(cimadj,0.004)
     cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
     #cimadj[...,1][peaks] = 255
-    if showEdges: cimadj[...,1]=edges
+    #if showEdges: cimadj[...,1]=ges
     #cimadj = cv2.medianBlur(cimadj, 5)
     updateprog(88,f"annotating image: {image_counter}")
     #cimadj[...,2] = edges.copy()
