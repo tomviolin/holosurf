@@ -104,12 +104,9 @@ def makefig(holoin, zi):
 
     if imgavg is None:
         imgavg = holoin.copy()
-        finavg = holoin.copy()
     else:
         alpha = 0.01
         imgavg = imgavg * (1.0-alpha) + holoin * alpha
-        beta = 1.0
-        finavg = finavg * (1.0-beta) + holoin * beta
 
     paddedholo = holoin.copy()
     
@@ -123,10 +120,10 @@ def makefig(holoin, zi):
     paddedholo = fixhololevel(paddedholo)
     holo.set_depth(zees[zi])
 
-    holo.set_background(imgavg)
-
-    #cimage = holo.process(paddedholo)
-    cimage = holo.process(finavg)
+    #holo.set_background(cp.array(imgavg))
+    #paddedholo = fixhololevel((paddedholo + 0.01) / (imgavg + 0.01))
+    cimage = holo.process(paddedholo)
+    #cimage = holo.process(finavg)
     return cimage
 
 #datahome,_ = os.path.split(sys.argv[1])
@@ -215,7 +212,7 @@ while capok and (not escaped):
     bins = len(hist)
     for i in range(bins):
         xcoord = int(i * cimadj.shape[1] / bins)
-        ycoord = cimadj.shape[0]-hist[i]
+        ycoord = int(cimadj.shape[0]-hist[i]/hist.max()*cimadj.shape[0]/8)
         cv2.rectangle(cimadj, ( xcoord, cimadj.shape[0]),( xcoord+int(1/bins*cimadj.shape[1]), ycoord), (0,255,255), -1)
     if type(cimadj) is not np.ndarray:
         cimadj = cimadj.get()

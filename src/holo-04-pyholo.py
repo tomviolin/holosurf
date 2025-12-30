@@ -177,25 +177,25 @@ while not escaped:
 
 
     updateprog(33,f"processing image: {sys.argv[imgptr]}")
-    edges = cv2.GaussianBlur(cimadj, (5,5),4)
-    edges2= cv2.GaussianBlur(cimadj, (5,5),8)
+    edges = cv2.GaussianBlur(cimag2, (5,5),4)
+    edges2= cv2.GaussianBlur(cimag2, (5,5),8)
     edges = cv2.absdiff(edges, edges2)
     edges = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX)
 
     zi = np.clip(zi, 0, len(zees)-1)
-    cimadj = fixhololevel(cimadj).get()
+    cimag2 = fixhololevel(cimag2).get()
     
-    peaks  = cimadj < np.quantile(cimadj,0.004)
-    cimadj = cv2.cvtColor((cimadj*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    #cimadj[...,1][peaks] = 255
-    if showEdges: cimadj[...,1]=edges
-    #cimadj = cv2.medianBlur(cimadj, 5)
+    peaks  = cimag2 < np.quantile(cimag2,0.004)
+    cimag2 = cv2.cvtColor((cimag2*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    #cimag2[...,1][peaks] = 255
+    if showEdges: cimag2[...,1]=edges
+    #cimag2 = cv2.medianBlur(cimag2, 5)
     updateprog(66,f"annotating image: {sys.argv[imgptr]}")
-    #cimadj[...,2] = edges.copy()
-    ##cimadj[...,1] = edges.copy()
-    #cimadj[...,0] = edges.copy()
-    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(0,0,0),3, cv2.LINE_AA)
-    cv2.putText(cimadj,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(55,255,255),1, cv2.LINE_AA)
+    #cimag2[...,2] = edges.copy()
+    ##cimag2[...,1] = edges.copy()
+    #cimag2[...,0] = edges.copy()
+    cv2.putText(cimag2,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(0,0,0),3, cv2.LINE_AA)
+    cv2.putText(cimag2,f"z={zees[zi]:09.06f} zi={zi:04d} frame={os.path.basename(sys.argv[imgptr])}", (1,51),cv2.FONT_HERSHEY_DUPLEX,0.8,(55,255,255),1, cv2.LINE_AA)
     bins = len(hist)
     for i in range(bins):
         xcoord = int(i * cimag2.shape[1] / bins)
